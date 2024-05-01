@@ -1,13 +1,27 @@
-/* Assembler code fragment for LC-2K */
+/* Assembler code fragment for LC-2K
+   author: sojung oh (2020042879)
+   final date: 2024-05-01
+ */
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
 #define MAXLINELENGTH 1000
+#define MAXMEMORYWORDS 65536
+
+typedef struct {
+	char *label;
+	int addr;
+} symbol;
+
+int PC = -1;
+int labelCnt = 0;
+symbol* symbolTable[MAXLINELENGTH];
 
 int readAndParse(FILE *, char *, char *, char *, char *, char *);
 int isNumber(char *);
+int bOpCode(char *);
 
 int main(int argc, char *argv[]) 
 {
@@ -36,24 +50,183 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
-	/* here is an example for how to use readAndParse to read a line from
+	while(1) {
+		/* here is an example for how to use readAndParse to read a line from
 		 inFilePtr */
-	if (!readAndParse(inFilePtr, label, opcode, arg0, arg1, arg2)) {
-		/* reached end of file */
-	}
+		if (!readAndParse(inFilePtr, label, opcode, arg0, arg1, arg2)) {
+			/* reached end of file */
+			break;
+		}
 
-	/* TODO: Phase-1 label calculation */
+		PC += 1;
+
+		/* TODO: error checking */
+		
+		/* duplicated labels */
+		for(int i = 0; i < labelCnt; ++i) {
+			symbol *p = symbolTable[i];
+			if(!strcmp(p->label, label)) {
+				printf("error: duplicated labels\n");
+				exit(1);
+			}
+		}
+
+		int op = bOpCode(opcode);
+
+		/* unrecognized opcodes */
+		if(op == -1) {
+			printf("error: unrecognized opcodes\n");
+			exit(1);
+		}
+		
+		/* offesetFields(16bit) overflow */
+		if(op == 3 || op == 4 || op == 5) {
+			if(isNumber(arg2)) {
+				int a = atoi(arg2);
+				if(a < -32768 || a > 32767) {
+					printf("error: offset overflow\n");
+					exit(1);
+				} 
+			}
+		}
+
+		/* register error */
+		if(op < 6) {
+			if(!isNumber(arg0) || !isNumber(arg1)) {
+				printf("error: non-integer register\n");
+				exit(1);
+			}
+			
+			if(atoi(arg0) < 0 || atoi(arg0) > 7 || atoi(arg1) < 0 || atoi(arg1) > 7) {
+				printf("error: register out of range\n");
+				exit(1);
+			}
+
+			if(op == 0 || op == 1) {
+				if(!isNumber(arg2)) {
+					printf("error: non-integer register\n");
+					exit(1);
+				}
+				if(atoi(arg2) < 0 || atoi(arg2) > 7) {
+					printf("error: register out of range\n");
+					exit(1);
+				}
+			}
+		}
+
+		/* TODO: Phase-1 label calculation */
+		/* if there is a label, store its address in symbol table*/
+		if(label[0] != '\0') {
+			symbolTable[labelCnt] = (symbol*)malloc(sizeof(symbol));
+			symbol* p = symbolTable[labelCnt];
+			p->label = (char*)malloc(sizeof(label));
+			strcpy(p->label, label);
+			p->addr = PC;
+			labelCnt++;
+		}
+	}
+	
 
 	/* this is how to rewind the file ptr so that you start reading from the
 		 beginning of the file */
 	rewind(inFilePtr);
+	PC = -1;
 
-	/* TODO: Phase-2 generate machine codes to outfile */
+	while(1) {
+		/* TODO: Phase-2 generate machine codes to outfile */
+		if (!readAndParse(inFilePtr, label, opcode, arg0, arg1, arg2)) {
+			/* reached end of file */
+			break;
+		}
 
-	/* after doing a readAndParse, you may want to do the following to test the
-		 opcode */
-	if (!strcmp(opcode, "add")) {
-		/* do whatever you need to do for opcode "add" */
+		/*  error checking
+		 *  label undefined 
+		 */
+		int chk = 0;
+		for(; chk < labelCnt; ++chk) {
+			symbol *p = symbolTable[chk];
+			if(!strcmp(label, p->label)) {
+				chk = 1;
+				break;
+			}
+		}
+		if(!chk) {
+			printf("error: label undefined\n");
+			exit(1);
+		}
+
+		PC += 1;
+
+		int machine_code = 0;
+		int op = bOpCode(opcode);
+		
+		if (op <= 5) {
+			int extendOp = op << 22;
+			machine_code |= extendOp;		
+			
+			int warg0 = atoi(arg0);
+			int warg1 = atoi(arg1);
+
+			warg0 = warg0 << 19;
+			warg1 = warg1 << 16;
+			
+			machine_code |= warg0;
+			machine_code |= warg1;
+
+			int warg2 = 0;
+			/* R-type instruction */
+			if(op == 0 || op == 1) {
+				warg2 = atoi(arg2);
+			}
+			/* I-type instruction */
+			else if(op <= 4) {
+				if(isNumber(arg2)) {
+					warg2 = atoi(arg2);	
+				}
+				else {
+					for(int i = 0; i < labelCnt; ++i) {
+						symbol *p = symbolTable[i];
+						
+						if(!strcmp(arg2, p->label)) {
+							/* beq offset calculation */
+							if(op == 4) {
+								int mask = 65535; // 1111111111111111
+								// offset = dst - (PC + 1)
+								warg2 = p->addr - (PC + 1);
+								warg2 &= mask;
+							}
+							else {
+								warg2 = p->addr;
+							}
+							break;
+						}
+					}
+				}
+			}
+			machine_code |= warg2;
+		}
+		/* O-type instruction */
+		else if(op <= 7) {
+			op = op << 22;
+			machine_code |= op;	
+		}
+		/* .fill instruction */
+		else {
+			if(isNumber(arg0)) {
+				machine_code = atoi(arg0);
+			}
+			else {
+				for(int i = 0; i < labelCnt; ++i) {
+					symbol *p = symbolTable[i];
+					if(!strcmp(arg0, p->label)) {
+						machine_code = p->addr;
+						break;
+					}
+				}
+			}
+		}
+
+		fprintf(outFilePtr, "%d\n", machine_code);
 	}
 
 	if (inFilePtr) {
@@ -121,3 +294,38 @@ int isNumber(char *string)
 	return( (sscanf(string, "%d", &i)) == 1);
 }
 
+int bOpCode(char *opcode) {
+	int ret;
+
+	if(!strcmp(opcode, "add")) {
+		ret = 0;
+	}
+	else if(!strcmp(opcode, "nor")) {
+		ret = 1;
+	}
+	else if(!strcmp(opcode, "lw")) {
+		ret = 2;
+	}
+	else if(!strcmp(opcode, "sw")) {
+		ret = 3;
+	}
+	else if(!strcmp(opcode, "beq")) {
+		ret = 4;
+	}
+	else if(!strcmp(opcode, "jalr")) {
+		ret = 5;
+	}
+	else if(!strcmp(opcode, "halt")) {
+		ret = 6;
+	}
+	else if(!strcmp(opcode, "noop")) {
+		ret = 7;
+	}
+	else if(!strcmp(opcode, ".fill")) {
+		ret = 8;
+	}
+	else {
+		ret = -1;
+	}
+	return ret;
+}
