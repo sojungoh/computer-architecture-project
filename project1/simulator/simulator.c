@@ -1,4 +1,7 @@
-/* LC-2K Instruction-level simulator */
+/* LC-2K Instruction-level simulator 
+ * author: sojung oh (2020042879)
+ * final date: 2024-05-11
+ */
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -6,7 +9,8 @@
 
 #define NUMMEMORY 65536 /* maximum number of words in memory */
 #define NUMREGS 8 /* number of machine registers */
-#define MAXLINELENGTH 1000 
+#define MAXLINELENGTH 1000
+
 typedef struct stateStruct {
     int pc;
     int mem[NUMMEMORY];
@@ -36,9 +40,7 @@ int main(int argc, char *argv[])
     }
 
     /* read in the entire machine-code file into memory */
-    for (state.numMemory = 0; fgets(line, MAXLINELENGTH, filePtr) != NULL;
-            state.numMemory++) {
-
+    for (state.numMemory = 0; fgets(line, MAXLINELENGTH, filePtr) != NULL; state.numMemory++) {
         if (sscanf(line, "%d", state.mem+state.numMemory) != 1) {
             printf("error in reading address %d\n", state.numMemory);
             exit(1);
@@ -46,7 +48,77 @@ int main(int argc, char *argv[])
         printf("memory[%d]=%d\n", state.numMemory, state.mem[state.numMemory]);
     }
 
-		/* TODO: */
+    /* initialize all registers and the program counter to 0*/
+    state.pc = 0;
+    for(int i = 0; i < NUMREGS; ++i)
+        state.reg[i] = 0;
+    
+    int instCnt = 0;
+
+    while(1) {
+        printState(&state);
+
+        /* calculate opcode */
+        int inst = state.mem[state.pc];
+        int op = inst >> 22;
+
+        /* calculate fields */
+        int ra, rb, rd, offset;
+        ra = (inst >> 19) & 7;
+        rb = (inst >> 16) & 7;
+        
+        if(op <= 1)
+            rd = inst & 7;
+        else if(op <= 4)
+            offset = convertNum(inst & 65535);
+        
+        /* perform operation */
+        switch(op) {
+            case 0: // add
+                state.reg[rd] = state.reg[ra] + state.reg[rb];
+                state.pc += 1;
+                break;
+            case 1: // nor
+                state.reg[rd] = ~(state.reg[ra] | state.reg[rb]);
+                state.pc += 1;
+                break;
+            case 2: // lw
+                state.reg[rb] = state.mem[state.reg[ra] + offset];
+                state.pc += 1;
+                break;
+            case 3: // sw
+                state.mem[state.reg[ra] + offset] = state.reg[rb];
+                state.pc += 1;
+                break;
+            case 4: // beq
+                state.pc = (state.reg[ra] == state.reg[rb]) ? state.pc + 1 + offset : state.pc + 1;
+                break;
+            case 5: // jalr
+                state.reg[rb] = state.pc + 1;
+                state.pc = state.reg[ra];
+                break;
+            case 6: // halt
+                state.pc += 1;
+                break;
+            case 7: // noop
+                break;
+            default:
+                fprintf(stderr, "unrecognized opcode");
+                exit(1);
+        }
+
+        instCnt += 1;
+
+        /* halt a program */
+        if(op == 6) {
+            printf("machine halted\n");
+            printf("total of %d instructions executed\n", instCnt);
+            printf("final state of machine:\n");
+            printState(&state);
+            break;
+        }
+    }
+    
     return(0);
 }
 
