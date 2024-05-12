@@ -58,6 +58,8 @@ int main(int argc, char *argv[])
     while(1) {
         printState(&state);
 
+        fflush(stdout);
+
         /* calculate opcode */
         int inst = state.mem[state.pc];
         int op = inst >> 22;

@@ -77,7 +77,6 @@ int main(int argc, char *argv[])
 			exit(1);
 		}
 		
-		
 		/* offesetFields(16bit) overflow */
 		if(op == 2 || op == 3 || op == 4) {
 			if(isNumber(arg2)) {
@@ -138,13 +137,15 @@ int main(int argc, char *argv[])
 			break;
 		}
 
+		int op = convertOpcodeToNum(opcode);
+
 		/*  error checking
 		 *  label undefined 
 		 */
-		if(arg2[0] != '\0' && !isNumber(arg2)) {
+		if(op >= 2 && op <= 4 && !isNumber(arg2)) {
 			int chk = 0;
 			for(int i = 0; i < labelCnt; ++i) {
-				symbol *p = symbolTable[chk];
+				symbol *p = symbolTable[i];
 				if(!strcmp(arg2, p->label)) {
 					chk = 1;
 					break;
@@ -159,7 +160,6 @@ int main(int argc, char *argv[])
 		PC += 1;
 
 		int machine_code = 0;
-		int op = convertOpcodeToNum(opcode);
 		
 		if (op <= 5) {
 			int extendOp = op << 22;
