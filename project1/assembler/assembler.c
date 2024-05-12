@@ -141,17 +141,19 @@ int main(int argc, char *argv[])
 		/*  error checking
 		 *  label undefined 
 		 */
-		int chk = 0;
-		for(; chk < labelCnt; ++chk) {
-			symbol *p = symbolTable[chk];
-			if(!strcmp(label, p->label)) {
-				chk = 1;
-				break;
+		if(arg2[0] != '\0' && !isNumber(arg2)) {
+			int chk = 0;
+			for(int i = 0; i < labelCnt; ++i) {
+				symbol *p = symbolTable[chk];
+				if(!strcmp(arg2, p->label)) {
+					chk = 1;
+					break;
+				}
 			}
-		}
-		if(!chk) {
-			printf("error: label undefined\n");
-			exit(1);
+			if(!chk) {
+				printf("error: label undefined\n");
+				exit(1);
+			}
 		}
 
 		PC += 1;
