@@ -1,6 +1,6 @@
 /* Assembler code fragment for LC-2K
-   author: sojung oh (2020042879)
-   final date: 2024-05-01
+ * author: sojung oh (2020042879)
+ * final date: 2024-05-12
  */
 
 #include <stdlib.h>
@@ -8,10 +8,9 @@
 #include <string.h>
 
 #define MAXLINELENGTH 1000
-#define MAXMEMORYWORDS 65536
 
 typedef struct {
-	char *label;
+	char* label;
 	int addr;
 } symbol;
 
@@ -21,7 +20,8 @@ symbol* symbolTable[MAXLINELENGTH];
 
 int readAndParse(FILE *, char *, char *, char *, char *, char *);
 int isNumber(char *);
-int bOpCode(char *);
+int convertNum(int num);
+int convertOpcodeToNum(char *);
 
 int main(int argc, char *argv[]) 
 {
@@ -51,8 +51,6 @@ int main(int argc, char *argv[])
 	}
 
 	while(1) {
-		/* here is an example for how to use readAndParse to read a line from
-		 inFilePtr */
 		if (!readAndParse(inFilePtr, label, opcode, arg0, arg1, arg2)) {
 			/* reached end of file */
 			break;
@@ -71,7 +69,7 @@ int main(int argc, char *argv[])
 			}
 		}
 
-		int op = bOpCode(opcode);
+		int op = convertOpcodeToNum(opcode);
 
 		/* unrecognized opcodes */
 		if(op == -1) {
@@ -158,7 +156,7 @@ int main(int argc, char *argv[])
 		PC += 1;
 
 		int machine_code = 0;
-		int op = bOpCode(opcode);
+		int op = convertOpcodeToNum(opcode);
 		
 		if (op <= 5) {
 			int extendOp = op << 22;
@@ -181,7 +179,8 @@ int main(int argc, char *argv[])
 			/* I-type instruction */
 			else if(op <= 4) {
 				if(isNumber(arg2)) {
-					warg2 = atoi(arg2);	
+					warg2 = atoi(arg2);
+					warg2 = convertNum(warg2);	
 				}
 				else {
 					for(int i = 0; i < labelCnt; ++i) {
@@ -190,10 +189,9 @@ int main(int argc, char *argv[])
 						if(!strcmp(arg2, p->label)) {
 							/* beq offset calculation */
 							if(op == 4) {
-								int mask = 65535; // 1111111111111111
 								// offset = dst - (PC + 1)
 								warg2 = p->addr - (PC + 1);
-								warg2 &= mask;
+								warg2 = convertNum(warg2);
 							}
 							else {
 								warg2 = p->addr;
@@ -294,7 +292,17 @@ int isNumber(char *string)
 	return( (sscanf(string, "%d", &i)) == 1);
 }
 
-int bOpCode(char *opcode) {
+int convertNum(int num)
+{
+	int mask = 65535;
+	/* convert a 32-bit number into a 16-bit Linux integer */
+	if(num & (1 << 31)) {
+		num &= mask;
+	}
+	return (num);
+}
+
+int convertOpcodeToNum(char *opcode) {
 	int ret;
 
 	if(!strcmp(opcode, "add")) {
