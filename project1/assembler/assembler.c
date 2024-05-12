@@ -77,8 +77,9 @@ int main(int argc, char *argv[])
 			exit(1);
 		}
 		
+		
 		/* offesetFields(16bit) overflow */
-		if(op == 3 || op == 4 || op == 5) {
+		if(op == 2 || op == 3 || op == 4) {
 			if(isNumber(arg2)) {
 				int a = atoi(arg2);
 				if(a < -32768 || a > 32767) {
